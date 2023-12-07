@@ -1,0 +1,3 @@
+import lightning
+
+class LitAuto
