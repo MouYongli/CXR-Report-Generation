@@ -13,7 +13,7 @@ from torch import nn
 # logger = logging.getLogger()
 base_path = os.getcwd()
         
-class Report_encoder(nn.Module):
+class ReportEncoder(nn.Module):
     def __init__(self,                 
                  med_config = os.path.join(base_path, './configs/med_config.json'),  
                  tokenizer = None,
@@ -47,6 +47,6 @@ class Report_encoder(nn.Module):
         text_output = self.text_encoder(tokens.input_ids, attention_mask=tokens.attention_mask,
                                         return_dict=True, mode='text')
         
-        # Only the CLS token embeddings wanted
+        # Only the CLS token embedding wanted
         text_feat = F.normalize(self.text_proj(text_output.last_hidden_state[:, 0, :]), dim=-1)
         return text_feat

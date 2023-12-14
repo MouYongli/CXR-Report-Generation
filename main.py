@@ -2,20 +2,12 @@ import torch
 import argparse
 from ruamel import yaml
 import numpy as np
-from generation_api.metrics import compute_scores
-from generation_api.optimizers import build_optimizer_blip, build_lr_scheduler
-from generation_api.loss import compute_loss
 from transformers import BertTokenizer
-from generation_api.tokenizers_blip import Tokenizer
-from models.blip import blip_decoder
 from blip_original import create_loader, create_dataset
-import os
 from transformers import AutoTokenizer
 import torch.nn.functional as F
 import torch.distributed
-import pdb
-import lightning as L
-import pickle
+from models.multimodal_encoder_vanilla import *
 
 def main(args, config):
     #torch.distributed.init_process_group(backend='nccl')
@@ -40,23 +32,28 @@ def main(args, config):
 
     # tokenizer = BertTokenizer.from_pretrained(args.text_encoder)
 
-    train_dataset, val_dataset, test_dataset = create_dataset(
-        'generation_%s'%args.dataset_name, 
-        args, 
-        config
-    )
+    # train_dataset, val_dataset, test_dataset = create_dataset(
+    #     'generation_%s'%args.dataset_name, 
+    #     args, 
+    #     config
+    # )
 
-    samplers = [None, None, None]
+    # samplers = [None, None, None]
 
-    train_dataloader, val_dataloader, test_dataloader = create_loader(
-        [train_dataset, val_dataset, test_dataset], 
-        samplers,
-        batch_size=[args.batch_size] * 3,
-        num_workers=[4, 4, 4],
-        is_trains=[True, False, False],
-        collate_fns=[None, None, None]
-    )
+    # train_dataloader, val_dataloader, test_dataloader = create_loader(
+    #     [train_dataset, val_dataset, test_dataset], 
+    #     samplers,
+    #     batch_size=[args.batch_size] * 3,
+    #     num_workers=[4, 4, 4],
+    #     is_trains=[True, False, False],
+    #     collate_fns=[None, None, None]
+    # )
 
+    model = Multimodal_encoder(tokenizer=tokenizer, args = args)
+    GA = torch.ones(768, 768,768,dtype=torch.long)
+    print(GA.size())
+    text = "TEST"
+    print(model(GA, text))
     # import pickle
 
     # def check_dataset(dataset):
@@ -73,28 +70,26 @@ def main(args, config):
 
     # check_dataset(train_dataset)
     
-    # TODO: seems that DECODER(BLIP/Lightning model) can not see the dataloader directly, thus need to define it previously. Any elegant solution to it?
-    args.trainset_len = len(train_dataloader)
+    # args.trainset_len = len(train_dataloader)
 
-    # # TODO: check where to freeze/unfreeze param
-    model = blip_decoder(
-        pretrained=args.pretrained,
-        image_size=config['image_size'], 
-        vit=config['vit'],
-        vit_grad_ckpt=config['vit_grad_ckpt'], 
-        vit_ckpt_layer=config['vit_ckpt_layer'],
-        prompt=config['prompt'], 
-        tokenizer=tokenizer, 
-        metric_ftns = compute_scores,
-        args=args
-    )
+    # model = blip_decoder(
+    #     pretrained=args.pretrained,
+    #     image_size=config['image_size'], 
+    #     vit=config['vit'],
+    #     vit_grad_ckpt=config['vit_grad_ckpt'], 
+    #     vit_ckpt_layer=config['vit_ckpt_layer'],
+    #     prompt=config['prompt'], 
+    #     tokenizer=tokenizer, 
+    #     metric_ftns = compute_scores,
+    #     args=args
+    # )
 
 
-    # pickle.dumps(model)
-    # -1 stands for using all gpus available. Change it to 'auto' when running on clusters.
-    trainer = L.Trainer(accelerator='gpu', devices=2, limit_train_batches=100, max_epochs=1, strategy='ddp')
-    trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
-    trainer.test(test_dataloaders=test_dataloader)
+    # # pickle.dumps(model)
+    # # -1 stands for using all gpus available. Change it to 'auto' when running on clusters.
+    # trainer = L.Trainer(accelerator='gpu', devices=2, limit_train_batches=100, max_epochs=1, strategy='ddp')
+    # trainer.fit(model=model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
+    # trainer.test(test_dataloaders=test_dataloader)
 
     '''
     # get function handles of loss and metrics

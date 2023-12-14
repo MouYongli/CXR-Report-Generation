@@ -22,7 +22,7 @@
   "vocab_size": 31092,
   "encoder_width": 768,
   "use_cache": true,
-  "add_cross_attention": true   
+  "add_cross_attention": false   
 }
 
 

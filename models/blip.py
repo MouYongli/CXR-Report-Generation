@@ -449,7 +449,7 @@ class BLIP_Decoder(L.LightningModule):
                                                   max_length=max_length,
                                                   min_length=min_length,
                                                   do_sample=True,
-                                                  top_p=top_p,
+                                                  top_p=top_p, # not implemented
                                                   num_return_sequences=1,
                                                   eos_token_id=self.tokenizer.sep_token_id,
                                                   pad_token_id=self.tokenizer.pad_token_id,
