@@ -8,6 +8,7 @@ from transformers import AutoTokenizer
 import torch.nn.functional as F
 import torch.distributed
 from models.multimodal_encoder_vanilla import *
+from config import get_config
 
 def main(args, config):
     #torch.distributed.init_process_group(backend='nccl')
@@ -107,6 +108,17 @@ def main(args, config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    cfg_path = "configs/BASIC.yaml"
+    parser.add_argument('--evaluate', action='store_true')
+    args = parser.parse_args()
+    args = get_config(args, cfg_path)
+    #print(args)
+    config = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
+    #print('Configuration:')
+    #print(config, end='\n\n')
+    main(args, config)
+
+    '''parser = argparse.ArgumentParser()
     parser.add_argument('--config', default='./configs/BLIP.yaml')
     parser.add_argument('--checkpoint', default='')
     parser.add_argument('--pretrained', default='')
@@ -212,4 +224,4 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     config = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
-    main(args, config)
+    main(args, config)'''
