@@ -70,7 +70,6 @@ class NEW_MODEL(L.LightningModule):
 
 
 
-
         ### init link prediction model - issue ### 
 
 
@@ -236,7 +235,7 @@ class NEW_MODEL(L.LightningModule):
         bs = image.size(0)
         output_pos = self.text_encoder(encoder_input_ids,
                                        attention_mask = text.attention_mask,
-                                       encoder_hidden_states = image_embeds,
+                                       encoder_hidden_states = GA,
                                        encoder_attention_mask = image_atts,      
                                        return_dict = True,
                                       )
@@ -248,11 +247,11 @@ class NEW_MODEL(L.LightningModule):
             weights_i2t.fill_diagonal_(0)
 
         # select a negative image for each text
-        image_embeds_neg = []
+        GA_neg = []
         for b in range(bs):
             neg_idx = torch.multinomial(weights_t2i[b], 1).item()
-            image_embeds_neg.append(image_embeds[neg_idx])
-        image_embeds_neg = torch.stack(image_embeds_neg,dim=0)
+            GA_neg.append(GA[neg_idx])
+        GA_neg = torch.stack(GA_neg,dim=0)
 
         # select a negative text for each image
         text_ids_neg = []
@@ -268,7 +267,7 @@ class NEW_MODEL(L.LightningModule):
         text_ids_all = torch.cat([encoder_input_ids, text_ids_neg],dim=0)
         text_atts_all = torch.cat([text.attention_mask, text_atts_neg],dim=0)
 
-        image_embeds_all = torch.cat([image_embeds_neg,image_embeds],dim=0)
+        image_embeds_all = torch.cat([GA_neg,GA],dim=0)
         image_atts_all = torch.cat([image_atts,image_atts],dim=0)
 
         output_neg = self.text_encoder(text_ids_all,
@@ -294,7 +293,7 @@ class NEW_MODEL(L.LightningModule):
 
         decoder_output = self.text_decoder(text.input_ids,
                                            attention_mask = text.attention_mask,
-                                           encoder_hidden_states = image_embeds,
+                                           encoder_hidden_states = GA,
                                            encoder_attention_mask = image_atts,
                                            labels = decoder_targets,
                                            return_dict = True,
