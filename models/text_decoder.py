@@ -30,7 +30,7 @@ base_path = os.getcwd()
         
 class TextDecoder(nn.module):
     def __init__(self,                 
-                 med_config = os.path.join(base_path, './configs/med_config.json'),  
+                 config = os.path.join(base_path, './configs/med_config.json'),  
                  vision_width = 768,
                  args = None
                  ):
@@ -44,7 +44,7 @@ class TextDecoder(nn.module):
         self.args = args
 
         # create the decoder
-        decoder_config = med_config
+        decoder_config = config
         decoder_config.encoder_width = 768 # 1024 for large vit
         if args.bert == 'base':
             self.text_decoder = BertLMHeadModel.from_pretrained('bert-base-uncased',config=decoder_config)
