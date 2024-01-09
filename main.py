@@ -50,11 +50,6 @@ def main(args, config):
     #     collate_fns=[None, None, None]
     # )
 
-    model = Multimodal_encoder(tokenizer=tokenizer, args = args)
-    GA = torch.ones(768, 768,768,dtype=torch.long)
-    print(GA.size())
-    text = "TEST"
-    print(model(GA, text))
     # import pickle
 
     # def check_dataset(dataset):
