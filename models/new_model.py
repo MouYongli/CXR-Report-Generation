@@ -10,7 +10,9 @@ from transformers import BertTokenizer, AutoTokenizer
 import transformers
 transformers.logging.set_verbosity_error()
 from torch.utils.tensorboard import SummaryWriter
-
+import pandas as pd
+from torch_geometric.data import HeteroData, Data, SubgraphLoader
+import torch_geometric as pyg
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -70,11 +72,6 @@ class NEW_MODEL(L.LightningModule):
 
 
 
-        ### init link prediction model - issue ### 
-
-
-
-
         ### init enhanced graph attention model* - issue ### 
 
 
@@ -93,6 +90,52 @@ class NEW_MODEL(L.LightningModule):
         text_width = self.text_encoder.config.hidden_size
 
         self.itm_head = nn.Linear(text_width, 2) 
+
+        # init KG
+        # load nodes with average pooling # TODO: put path param in config
+
+        df = pd.read_csv('/DATA1/bzhu/CXR-Report-Generation/PyG_dataset/entity.csv', index_col="ID")
+        average_embeddings = []
+        for _, row in df.iterrows():
+            text = self.tokenizer(row['entity'], padding='max_length', truncation=True, max_length=90, return_tensors="pt")
+            text_embeddings = self.text_encoder(text.input_ids, attention_mask=text.attention_mask, return_dict=True, mode='text')
+            
+            average_embedding = torch.mean(text_embeddings, dim=0)
+            average_embeddings.append(average_embedding)
+        x = torch.stack(average_embeddings)
+        self.node_embeddings = x
+        '''
+        # Alternative: load nodes with CLS token
+        df = pd.read_csv('/DATA1/bzhu/CXR-Report-Generation/PyG_dataset/entity.csv', index_col="ID")
+
+        # Add a CLS token to entities with more than one word
+        df['entity'] = df['entity'].apply(lambda x: 'CLS ' + x if len(x.split()) > 1 else x)
+
+        # Initialize an empty list to store the first text embeddings
+        first_text_embeddings = []
+
+        # Tokenize the entities and get the first text embedding
+        for entity in df['entity']:
+            text = self.tokenizer(entity, padding='max_length', truncation=True, max_length=90, return_tensors="pt")
+            text_embeddings = self.text_encoder(text.input_ids, attention_mask=text.attention_mask, return_dict=True, mode='text')
+            first_text_embedding = text_embeddings[0]
+            first_text_embeddings.append(first_text_embedding)
+        '''
+
+        # load edges with average pooling
+        df = pd.read_csv(path = '/DATA1/bzhu/CXR-Report-Generation/PyG_dataset/triplet.csv')
+        edge_index = torch.tensor([df['source'], df['des']])
+        average_embeddings = []
+        for _, row in df.iterrows():
+            # Tokenize the 'relation' and get its text embeddings
+            text = self.tokenizer(row['relation'], padding='max_length', truncation=True, max_length=90, return_tensors="pt")
+            text_embeddings = self.text_encoder(text.input_ids, attention_mask=text.attention_mask, return_dict=True, mode='text')
+           
+            average_embedding = torch.mean(text_embeddings[0], dim=0)
+            average_embeddings.append(average_embedding)
+        edge_attr = torch.stack(average_embeddings)
+
+        self.graph = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
 
         # TODO: figure out whether we still need a serie of momentum encoders
         # create momentum encoders  
@@ -144,7 +187,7 @@ class NEW_MODEL(L.LightningModule):
         self.temp = nn.Parameter(0.07*torch.ones([]))   
 
         
-    def forward(self, image, caption, knowledge_skg, knowledge_tc,alpha, epoch):
+    def forward(self, image, alpha, epoch):
         torch.autograd.set_detect_anomaly(True)
         with torch.no_grad():
             self.temp.clamp_(0.001,0.5)
@@ -164,17 +207,23 @@ class NEW_MODEL(L.LightningModule):
         At the end a GA is expected. GA could be a sequence of embeddings with fused* CLS token at the beginning to represent the knowledge of a givin image
         '''
         GA = None
-        text = self.tokenizer(caption, padding='max_length', truncation=True, max_length=90, return_tensors="pt").to(image.device)
-        text_embeddings = self.text_encoder(text.input_ids, attention_mask=text.attention_mask,
-                                        return_dict=True, mode='text')
-        text_feat = F.normalize(self.text_proj(text_embeddings.last_hidden_state[:, 0, :]), dim=-1)
+
+        subgraph_n, _ = self.create_subgraphs(self.graph, image_embeddings, self.node_embeddings, n=10)
+        subgraph_one_hop = self.get_one_hop_subgraph(self.graph, subgraph_n)
+
+        # text = self.tokenizer(caption, padding='max_length', truncation=True, max_length=90, return_tensors="pt").to(image.device)
+        # text_embeddings = self.text_encoder(text.input_ids, attention_mask=text.attention_mask,
+        #                                 return_dict=True, mode='text')
+        # text_feat = F.normalize(self.text_proj(text_embeddings.last_hidden_state[:, 0, :]), dim=-1)
 
         image_feat = F.normalize(self.vision_proj(GA[:, 0, :]), dim=-1) # bs x 768     
         image_atts = torch.ones(GA.size()[:-1], dtype=torch.long).to(image.device)
 
         # refer to https://github.com/salesforce/BLIP/blob/main/models/blip_retrieval.py for methods that retrive reports
         ###============== Image-report Contrastive Learning ===================###
-
+        # TODO: TEXT/CAPTION should be no more visual to model. Alternativ solution needed. Maybe concat all nodes and edge together.
+        text = None
+        text_feat = None
         # get momentum features
         with torch.no_grad():
             self._momentum_update()
@@ -502,6 +551,32 @@ class NEW_MODEL(L.LightningModule):
     def on_fit_end(self) -> None:
         self.writer.close()
         return super().on_fit_end()
+    
+    def create_subgraphs(graph, image_embedding, node_embeddings, n=10, k=0.8):
+        normalized_image_embedding = image_embedding / image_embedding.norm(dim=1)[:, None]
+        normalized_node_embeddings = node_embeddings / node_embeddings.norm(dim=1)[:, None]
+
+        similarity_scores = torch.mm(normalized_image_embedding, normalized_node_embeddings.transpose(0, 1))
+
+        top_n_indices = torch.topk(similarity_scores, n).indices
+        more_than_k_indices = torch.where(similarity_scores > k)
+
+        # Create subgraphs
+        subgraph_a = SubgraphLoader(graph, top_n_indices)
+        subgraph_b = SubgraphLoader(graph, more_than_k_indices)
+
+        return subgraph_a, subgraph_b
+    
+    def get_one_hop_subgraph(graph, subgraph):
+        neighbors = pyg.utils.neighbors(subgraph)
+        
+        mask = torch.zeros(graph.num_nodes, dtype=bool)
+        mask[neighbors] = True
+        mask[subgraph] = True
+
+        one_hop_subgraph = graph.subgraph(mask)
+        
+        return one_hop_subgraph
 
 def NEW_MODEL(pretrained='',**kwargs):
     model = NEW_MODEL(**kwargs)
