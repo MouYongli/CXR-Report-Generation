@@ -9,16 +9,17 @@ from utils.blip_utils import *
 
 class LitBlip(L.LightningModule):
     def __init__(self,                 
-                 med_config = 'configs/model/med_config.json',  
-                 image_size = 224,
-                 vit = 'base',
-                 vit_grad_ckpt = False,
-                 vit_ckpt_layer = 0,
-                 prompt = 'a picture of ',
-                 tokenizer = None,
-                 embed_dim = 256,     
-                 args = None
-                 ):
+                optimizer: torch.optim.Optimizer,
+                scheduler: torch.optim.lr_scheduler,
+                med_config = 'configs/model/med_config.json',  
+                image_size = 224,
+                vit = 'base',
+                vit_grad_ckpt = False,
+                vit_ckpt_layer = 0,
+                prompt = 'a picture of ',
+                tokenizer = None,
+                embed_dim = 256,
+                ):
         """
         Args:
             med_config (str): path for the mixture of encoder-decoder model's configuration file
@@ -30,13 +31,10 @@ class LitBlip(L.LightningModule):
         self.visual_encoder, vision_width = create_vit(vit, image_size, vit_grad_ckpt, vit_ckpt_layer)
         self.tokenizer = init_tokenizer()
         #self.tokenizer = tokenizer
-        self.args = args
         self.prompt = prompt
-        
-        med_config = 'configs/med_config_blip.json'
-
-        med_config = BertConfig.from_json_file(med_config)
+        self.prompt_length = len(self.tokenizer(self.prompt).input_ids)-1
         med_config.encoder_width = vision_width
+        med_config = BertConfig.from_json_file(med_config)
         self.text_encoder = BertModel(config=med_config, add_pooling_layer=False)
 
         # med_config.encoder_width = vision_width
@@ -103,5 +101,16 @@ class LitBlip(L.LightningModule):
         return
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.arg['init_lr'], weight_decay=self.arg['weight_decay'])
-        return optimizer
+        optimizer = self.hparams.optimizer(params=self.trainer.model.parameters())
+        if self.hparams.scheduler is not None:
+            scheduler = self.hparams.scheduler(optimizer=optimizer)
+            return {
+                "optimizer": optimizer,
+                "lr_scheduler": {
+                    "scheduler": scheduler,
+                    #"monitor": "val/loss",
+                    "interval": "epoch",
+                    "frequency": 1,
+                },
+            }
+        return {"optimizer": optimizer}
