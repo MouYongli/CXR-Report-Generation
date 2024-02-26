@@ -1,8 +1,8 @@
 import warnings
 warnings.filterwarnings("ignore")
 
-from models.vit_blip import VisionTransformer, interpolate_pos_embed
-from models.med import BertConfig, BertModel, BertLMHeadModel
+from models.components.vit import VisionTransformer, interpolate_pos_embed
+from models.components.med import BertConfig, BertModel, BertLMHeadModel
 from transformers import BertTokenizer, AutoTokenizer
 import transformers
 transformers.logging.set_verbosity_error()
@@ -13,18 +13,13 @@ import torch.nn.functional as F
 
 import os
 from urllib.parse import urlparse
-from timm.models.hub import download_cached_file
-from functools import partial
-from medical_knowledge.knowledge import create_knowledge
-from medical_knowledge.SKG_knowledge import *
-from models.tagencoder import TagEncoder, update_skg
+from timm.models.hub import download_cached_file   
+import logging
 
-def blip_decoder(pretrained='',**kwargs):
-    model = BLIP_Decoder(**kwargs)
-    if pretrained:
-        model,msg = load_checkpoint(model,pretrained)
-    return model    
-    
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
+base_path = os.getcwd()
+
 def init_tokenizer(args):
     if args.bert == 'base':
         tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
