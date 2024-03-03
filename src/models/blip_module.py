@@ -61,9 +61,9 @@ class LitBlip(L.LightningModule):
                                            labels = decoder_targets,
                                            return_dict = True,   
                                           )   
-        loss_lm = decoder_output.loss
+        loss = decoder_output.loss
         
-        return loss_lm
+        return loss
 
     def trainning_epoch_end(self, outputs):
          pass
@@ -108,7 +108,7 @@ class LitBlip(L.LightningModule):
                 "optimizer": optimizer,
                 "lr_scheduler": {
                     "scheduler": scheduler,
-                    #"monitor": "val/loss",
+                    "monitor": "loss",
                     "interval": "epoch",
                     "frequency": 1,
                 },

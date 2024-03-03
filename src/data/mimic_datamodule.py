@@ -16,6 +16,8 @@ Image.MAX_IMAGE_PIXELS = None
 import tqdm
 import re
 from lightning import LightningDataModule
+import sys
+sys.path.append('../')
 import utils
 
 def pre_caption(caption,max_words=50):
@@ -39,9 +41,10 @@ def pre_caption(caption,max_words=50):
             
     return caption
 
-def check_empty(ann, image_root):
+def check_empty(ann, image_root, split):
     ann_check_exist = []
-    for a in tqdm.tqdm(ann):
+    ann = ann[split]
+    for a in tqdm.tqdm(ann): 
         img_path = a['image_path']
         if isinstance(img_path, list):
             img_path = img_path[0]
@@ -62,16 +65,15 @@ def create_sampler(datasets, shuffles, num_tasks, global_rank):
     return samplers
 
 class MIMICDataset(Dataset):
-    def __init__(self, transform, image_root, ann_root, max_words=90, prompt='', args=None, split: str = "train"):
-        self.annotation = json.load(open(os.path.join(ann_root),'r'))
+    def __init__(self, transforms, data_dir, ann_dir, max_words=90, prompt='', split: str = "train"):
+        self.annotation = json.load(open(os.path.join(ann_dir),'r'))
         self.ann = self.annotation
-        self.transform = transform
-        self.image_root = image_root
+        self.transform = transforms
+        self.image_root = data_dir
         self.max_words = max_words      
         self.prompt = prompt
-        self.args = args
         self.split = split
-        self.ann_check_exist = check_empty(self.ann, self.image_root)
+        self.ann_check_exist = check_empty(self.ann, self.image_root, self.split)
 
     def __len__(self):
         return len(self.ann_check_exist)
@@ -105,25 +107,22 @@ class MIMICDataset(Dataset):
 class MIMICDataModule(LightningDataModule):
     def __init__(
         self,
-        data_dir: str = "./data/",
-        ann_dir: str = "./data/",
-        train_val_split: Tuple[float, float] = [0.8],
+        data_dir: str = "/DATA1/llm-research/MIMIC-CXR/files",
+        ann_dir: str = "../../configs/data/mimic_annotation.json",
         batch_size: int = 10,
+        prompt: str = "a picture of ",
         seed: int = 42,
-        num_workers: int = 1,
-        args=None,
-        config=None
+        num_workers: int = 1
     ):
         super().__init__()
         self.save_hyperparameters(logger=False)
         np.random.seed(self.hparams.seed)
+      
 
         self.data_train: Optional[Dataset] = None
         self.data_val: Optional[Dataset] = None
         self.data_test: Optional[Dataset] = None
-        self.args = args
         self.num_workers = num_workers
-        self.config = config
         self.samplers = None
 
         self.train_transforms = transforms.Compose([
@@ -146,40 +145,36 @@ class MIMICDataModule(LightningDataModule):
     def setup(self, stage: Optional[str] = None):
         self.data_train = MIMICDataset(
             transforms=self.train_transforms, 
-            data_dir=self.args.image_dir.split('&')[1], 
-            ann_dir=self.args.knowledge_path.split('&')[1], 
-            prompt=self.config['prompt'], 
-            split='train',  
-            args=self.args
+            data_dir=self.hparams.data_dir, 
+            ann_dir=self.hparams.ann_dir, 
+            prompt=self.hparams.prompt, 
+            split='train'
         )
 
         self.data_val = MIMICDataset(
             transforms=self.val_transforms, 
-            data_dir=self.args.image_dir.split('&')[1], 
-            ann_dir=self.args.ann_path.split('&')[1], 
-            split='val', 
-            args=self.args
+            data_dir=self.hparams.data_dir, 
+            ann_dir=self.hparams.ann_dir, 
+            split='val'
         )
 
         self.data_test = MIMICDataset(
             transforms=self.val_transforms, 
-            data_dir=self.args.image_dir.split('&')[1], 
-            ann_dir=self.args.ann_path.split('&')[1], 
-            split='val', 
-            args=self.args
+            data_dir=self.hparams.data_dir, 
+            ann_dir=self.hparams.ann_dir, 
+            split='val'
         )
-
-
     
     def train_dataloader(self) -> DataLoader:
-        utils.init_distributed_mode(self.args)
+        '''utils.init_distributed_mode(self.args)
         if self.args.distributed:
             num_tasks = utils.get_world_size()
             global_rank = utils.get_rank()            
             self.samplers = create_sampler(self.data_train, True, num_tasks, global_rank)         
         else:
-            self.samplers = None
+            self.samplers = None'''
 
+        self.sampler = None
         return DataLoader(
             dataset=self.data_train,
             batch_size= self.hparams.batch_size,
@@ -191,14 +186,15 @@ class MIMICDataModule(LightningDataModule):
         )
     
     def val_dataloader(self) -> DataLoader:
-        utils.init_distributed_mode(self.args)
+        '''utils.init_distributed_mode(self.args)
         if self.args.distributed:
             num_tasks = utils.get_world_size()
             global_rank = utils.get_rank()            
             self.samplers = create_sampler(self.data_train, True, num_tasks, global_rank)         
         else:
-            self.samplers = None
+            self.samplers = None'''
 
+        self.sampler = None
         return DataLoader(
             dataset=self.data_val,
             sampler=self.sampler,
@@ -210,13 +206,15 @@ class MIMICDataModule(LightningDataModule):
         )
     
     def test_dataloader(self) -> DataLoader:
-        utils.init_distributed_mode(self.args)
+        '''utils.init_distributed_mode(self.args)
         if self.args.distributed:
             num_tasks = utils.get_world_size()
             global_rank = utils.get_rank()            
             self.samplers = create_sampler(self.data_train, True, num_tasks, global_rank)         
         else:
-            self.samplers = None
+            self.samplers = None'''
+
+        self.sampler = None
         return DataLoader(
             dataset=self.data_test,
             sampler=self.sampler,
@@ -227,4 +225,15 @@ class MIMICDataModule(LightningDataModule):
         )
 
 if __name__ == "__main__":
-     _ = MIMICDataModule()
+     #_ = MIMICDataModule()
+    a = MIMICDataModule()
+
+    train_data = a.train_dataloader()
+    dataiter = iter(train_data)
+    images, labels = dataiter.next()
+    print(images.shape)
+    '''RuntimeError: The NVIDIA driver on your system is too old (found version 11080). 
+    Please update your GPU driver by downloading and installing a new version from the URL: 
+    http://www.nvidia.com/Download/index.aspx 
+    Alternatively, go to: https://pytorch.org 
+    to install a PyTorch version that has been compiled with your version of the CUDA driver.'''

@@ -3,15 +3,20 @@ _target_: src.models.mnist_module.LitBlip
 optimizer:
   _target_: torch.optim.AdamW
   _partial_: true
-  lr: 0.001
-  weight_decay: 0.0
+  lr: 1e-5
+  weight_decay: 0.05
 
 scheduler:
-  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  _target_: torch.optim.lr_scheduler.CosineAnnealingLR
   _partial_: true
-  mode: min
-  factor: 0.1
-  patience: 10
+  sched: cosine, 
+  lr: 1e-5, 
+  epochs: 10, 
+  min_lr: 1e-6, 
+  decay_rate: 1, 
+  warmup_lr: 1e-5, 
+  warmup_epochs: 1, 
+  cooldown_epochs: 0
 
 #net:
   #_target_: src.models.components.simple_dense_net.SimpleDenseNet
