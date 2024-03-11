@@ -770,6 +770,8 @@ class BertModel(BertPreTrainedModel):
         head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
         
         if encoder_embeds is None:
+            print(past_key_values_length)
+            print(input_ids)
             embedding_output = self.embeddings(
                 input_ids=input_ids,
                 position_ids=position_ids,

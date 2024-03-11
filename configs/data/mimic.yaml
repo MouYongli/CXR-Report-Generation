@@ -1,7 +1,7 @@
 _target_: src.data.mimic_datamodule.MIMICDataModule
-data_dir: ${/DATA1/llm-research/MIMIC-CXR/files}
-ann_dir: ${./mimic_annotation.json}
+data_dir: '/DATA1/llm-research/MIMIC-CXR/files'
+ann_dir: '/DATA1/ailinliu/Lightning/configs/data/mimic_annotation.json'
 prompt: 'a picture of '
-batch_size: 10
+batch_size: 2
 seed: 42
 num_workers: 1

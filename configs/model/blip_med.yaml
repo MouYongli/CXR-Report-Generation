@@ -1,4 +1,4 @@
-_target_: src.models.mnist_module.LitBlip
+_target_: src.models.blip_module.LitBlip
 
 optimizer:
   _target_: torch.optim.AdamW
@@ -9,20 +9,14 @@ optimizer:
 scheduler:
   _target_: torch.optim.lr_scheduler.CosineAnnealingLR
   _partial_: true
-  sched: cosine, 
-  lr: 1e-5, 
-  epochs: 10, 
-  min_lr: 1e-6, 
-  decay_rate: 1, 
-  warmup_lr: 1e-5, 
-  warmup_epochs: 1, 
-  cooldown_epochs: 0
+  T_max: 5
 
-#net:
-  #_target_: src.models.components.simple_dense_net.SimpleDenseNet
-  #input_size: 784
-  #lin1_size: 64
-  #lin2_size: 128
-  #lin3_size: 64
-  #output_size: 10
+net:
+  _target_: src.models.components.blip.BLIP_Decoder
+  med_config: '/DATA1/ailinliu/Lightning/configs/model/med_config.json' 
+  image_size: 224
+  vit: 'base'
+  vit_grad_ckpt: False
+  vit_ckpt_layer: 0
+  prompt: 'a picture of '
 

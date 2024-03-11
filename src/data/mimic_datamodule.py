@@ -109,7 +109,7 @@ class MIMICDataModule(LightningDataModule):
         self,
         data_dir: str = "/DATA1/llm-research/MIMIC-CXR/files",
         ann_dir: str = "../../configs/data/mimic_annotation.json",
-        batch_size: int = 10,
+        batch_size: int = 2,
         prompt: str = "a picture of ",
         seed: int = 42,
         num_workers: int = 1
@@ -126,15 +126,15 @@ class MIMICDataModule(LightningDataModule):
         self.samplers = None
 
         self.train_transforms = transforms.Compose([
-            transforms.Resize(384),
-            transforms.RandomCrop(384),
+            transforms.Resize(224),
+            transforms.RandomCrop(224),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize((0.485, 0.456, 0.406),
                              (0.229, 0.224, 0.225))])
 
         self.val_transforms = transforms.Compose([
-            transforms.Resize((384, 384)),
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize((0.485, 0.456, 0.406),
                              (0.229, 0.224, 0.225))])
@@ -231,9 +231,4 @@ if __name__ == "__main__":
     train_data = a.train_dataloader()
     dataiter = iter(train_data)
     images, labels = dataiter.next()
-    print(images.shape)
-    '''RuntimeError: The NVIDIA driver on your system is too old (found version 11080). 
-    Please update your GPU driver by downloading and installing a new version from the URL: 
-    http://www.nvidia.com/Download/index.aspx 
-    Alternatively, go to: https://pytorch.org 
-    to install a PyTorch version that has been compiled with your version of the CUDA driver.'''
+    print(images.shape) #torch.Size([2, 3, 384, 384])
