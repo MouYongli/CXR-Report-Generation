@@ -1,13 +1,3 @@
-'''
- * Copyright (c) 2022, salesforce.com, inc.
- * All rights reserved.
- * SPDX-License-Identifier: BSD-3-Clause
- * For full license text, see LICENSE.txt file in the repo root or https://opensource.org/licenses/BSD-3-Clause
- * By Junnan Li
- * Based on huggingface code base
- * https://github.com/huggingface/transformers/blob/v4.15.0/src/transformers/models/bert
-'''
-
 import math
 import os
 import warnings
@@ -52,21 +42,21 @@ logger = logging.get_logger(__name__)
 class BertEmbeddings(nn.Module):
     """Construct the embeddings from word and position embeddings."""
 
-    def __init__(self, config, SKG_know=False):
+    def __init__(self, config):
         super().__init__()
-        self.config = config
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
+        self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
+
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
         # any TensorFlow checkpoint file
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-        if not SKG_know:
-            self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
-            # position_ids (1, len position emb) is contiguous in memory and exported when serialized
-            self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)))
-            self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
-        
 
+        # position_ids (1, len position emb) is contiguous in memory and exported when serialized
+        self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)))
+        self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
+        
+        self.config = config
 
     def forward(
         self, input_ids=None, position_ids=None, inputs_embeds=None, past_key_values_length=0
@@ -88,7 +78,7 @@ class BertEmbeddings(nn.Module):
 
         if self.position_embedding_type == "absolute":
             position_embeddings = self.position_embeddings(position_ids)
-            embeddings = embeddings + position_embeddings #
+            embeddings += position_embeddings
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
         return embeddings
@@ -522,7 +512,7 @@ class BertLMPredictionHead(nn.Module):
 
         # The output weights are the same as the input embeddings, but there is
         # an output-only bias for each token.
-        self.decoder = nn.Linear(config.hidden_size, config.vocab_size, bias=False) #改
+        self.decoder = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
         self.bias = nn.Parameter(torch.zeros(config.vocab_size))
 
@@ -578,18 +568,17 @@ class BertModel(BertPreTrainedModel):
     input to the forward pass.
     """
 
-    def __init__(self, config, add_pooling_layer=True, SKG_know=False):
+    def __init__(self, config, add_pooling_layer=True):
         super().__init__(config)
         self.config = config
 
-        self.embeddings = BertEmbeddings(config, SKG_know)
+        self.embeddings = BertEmbeddings(config)
+        
+        self.encoder = BertEncoder(config)
 
-        if not SKG_know:
-            self.encoder = BertEncoder(config)
+        self.pooler = BertPooler(config) if add_pooling_layer else None
 
-            self.pooler = BertPooler(config) if add_pooling_layer else None
-
-            self.init_weights()
+        self.init_weights()
  
 
     def get_input_embeddings(self):
@@ -770,8 +759,6 @@ class BertModel(BertPreTrainedModel):
         head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
         
         if encoder_embeds is None:
-            print(past_key_values_length)
-            print(input_ids)
             embedding_output = self.embeddings(
                 input_ids=input_ids,
                 position_ids=position_ids,
@@ -914,8 +901,7 @@ class BertLMHeadModel(BertPreTrainedModel):
             # we are doing next-token prediction; shift prediction scores and input ids by one
             shifted_prediction_scores = prediction_scores[:, :-1, :].contiguous()
             labels = labels[:, 1:].contiguous()
-            loss_fct = CrossEntropyLoss(reduction=reduction, label_smoothing=0.1)
-            # loss_fct = CrossEntropyLoss(reduction=reduction)
+            loss_fct = CrossEntropyLoss(reduction=reduction, label_smoothing=0.1) 
             lm_loss = loss_fct(shifted_prediction_scores.view(-1, self.config.vocab_size), labels.view(-1))
             if reduction=='none':
                 lm_loss = lm_loss.view(prediction_scores.size(0),-1).sum(1)               

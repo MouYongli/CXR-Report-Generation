@@ -89,7 +89,7 @@ class MIMICDataset(Dataset):
             image = self.transform(image)
             caption_train = self.prompt + pre_caption(ann['report'], self.max_words)
             return image, caption_train
-        elif self.split == "eval":
+        elif self.split == "test":
             ann = self.ann_check_exist[index]
             image_path = ann['image_path']
             path = os.path.join(self.image_root, image_path[0]).replace('.jpg', '.dcm')
@@ -101,7 +101,7 @@ class MIMICDataset(Dataset):
             caption = ann['report']
             return image, caption, img_id
         else:
-            raise NameError("split must be in 'train' or 'val'")
+            raise NameError("split must be in 'train' or 'test'")
 
     
 class MIMICDataModule(LightningDataModule):
@@ -155,14 +155,14 @@ class MIMICDataModule(LightningDataModule):
             transforms=self.val_transforms, 
             data_dir=self.hparams.data_dir, 
             ann_dir=self.hparams.ann_dir, 
-            split='val'
+            split='test'
         )
 
         self.data_test = MIMICDataset(
             transforms=self.val_transforms, 
             data_dir=self.hparams.data_dir, 
             ann_dir=self.hparams.ann_dir, 
-            split='val'
+            split='test'
         )
     
     def train_dataloader(self) -> DataLoader:
