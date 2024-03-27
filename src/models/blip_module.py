@@ -6,6 +6,8 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 import lightning as L
 from utils.blip_utils import *
+from utils.metric import compute_scores
+
 
 class LitBlip(L.LightningModule):
     def __init__(self,                 
@@ -30,7 +32,7 @@ class LitBlip(L.LightningModule):
         # training_step defines the train loop.
         image, caption = batch
         loss = self.net(image, caption)
-        
+        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
     def trainning_epoch_end(self, outputs):
@@ -39,11 +41,17 @@ class LitBlip(L.LightningModule):
     def test_step(self, batch, batch_idx):
         result = []
         gt = []
-        image, caption = batch      
+        image, caption, img_id = batch      
         generated_caption = self.net.generate(image, sample=False)
         gt.extend(caption)
         result.extend(generated_caption)
-        return result, gt
+        scores = compute_scores({i: [gt] for i, gt in enumerate(gt)},
+                                    {i: [re] for i, re in enumerate(result)})
+        self.log("val/bleu", scores['BLEU_1'], on_step=True, on_epoch=True, prog_bar=True)
+        #self.log("val/meteor", scores[0], on_step=True, on_epoch=True, prog_bar=True)
+        self.log("val/rouge", scores['ROUGE_L'], on_step=True, on_epoch=True, prog_bar=True)
+        self.log("val/cider", scores['CIDER'], on_step=True, on_epoch=True, prog_bar=True)
+        return caption, generated_caption
     
     def _common_step(self, batch, batch_idx):
         # training_step defines the train loop.

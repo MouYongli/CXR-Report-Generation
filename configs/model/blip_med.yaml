@@ -13,10 +13,11 @@ scheduler:
 
 net:
   _target_: src.models.components.blip.BLIP_Decoder
-  med_config: '/DATA1/ailinliu/Lightning/configs/model/med_config.json' 
+  med_config: '../configs/model/med_config.json' 
   image_size: 224
   vit: 'base'
   vit_grad_ckpt: False
   vit_ckpt_layer: 0
   prompt: 'a picture of '
+  
 
